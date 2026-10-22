@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ball Sort Blast</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#0b0d1e;--panel:#171a35;--ink:#f1f3ff;--muted:#8d93b8;--accent:#00e5ff;--glass:rgba(255,255,255,.08);color-scheme:dark}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#eef0f8;--panel:#fff;--ink:#1b1f33;--muted:#6b7190;--accent:#5b4bff;--glass:rgba(0,0,0,.06);color-scheme:light}}
+:root[data-theme="dark"]{--bg:#0b0d1e}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:"Trebuchet MS",system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;user-select:none;overflow-x:hidden}
+header,nav,footer{width:100%;max-width:640px;padding:8px 12px;display:flex;gap:6px;align-items:center;justify-content:space-between}
+.stat{flex:1;background:var(--panel);border-radius:12px;padding:6px;text-align:center;font-size:11px;color:var(--muted)}
+.stat b{display:block;font-size:18px;color:var(--ink)}
+button{font:inherit;border:0;border-radius:12px;background:var(--panel);color:var(--ink);padding:9px 10px;cursor:pointer;flex:1}
+button:disabled{opacity:.35}button.on{background:var(--accent);color:#001}
+#board{flex:1;width:100%;max-width:640px;display:flex;flex-wrap:wrap;gap:14px 10px;justify-content:center;align-content:center;padding:10px;position:relative}
+.tube{width:38px;height:236px;border:3px solid var(--rim);border-top-color:transparent;border-radius:0 0 22px 22px;background:var(--glass);display:flex;flex-direction:column-reverse;align-items:center;padding:3px 0;gap:2px;transition:transform .15s;box-shadow:0 0 10px var(--rim)}
+.tube.sel{transform:translateY(-14px)}.tube.done{box-shadow:0 0 18px #ffd700;border-color:#ffd700}.tube.hint{outline:3px dashed var(--accent)}
+.tube.shake{animation:sh .3s}@keyframes sh{25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+.ball{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:18px;flex:none}
+#call{position:fixed;top:30%;left:0;right:0;text-align:center;font-size:32px;font-weight:900;pointer-events:none;opacity:0;text-shadow:0 0 14px var(--accent)}
+#call.show{animation:pop 1.1s}@keyframes pop{0%{opacity:0;transform:scale(.5)}20%{opacity:1;transform:scale(1.15)}80%{opacity:1}100%{opacity:0;transform:scale(1)}}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;place-items:center;z-index:5;padding:16px}
+.modal.open{display:grid}.card{background:var(--panel);border-radius:20px;padding:20px;width:min(380px,100%);text-align:center;max-height:85%;overflow:auto}
+.card h2{margin:0 0 8px}.row{display:flex;gap:8px;margin-top:10px;align-items:center}.item{text-align:left;background:var(--glass);border-radius:12px;padding:8px 10px;margin-top:8px;display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px}
+.item button{flex:none}.item small{color:var(--muted);display:block}
+</style>
+</head>
+<body>
+<header>
+ <div class="stat">LEVEL<b id="lv">1</b></div><div class="stat" id="s2">MOVES<b id="mv">0</b></div><div class="stat">BEST<b id="bt">-</b></div><div class="stat">COINS 🪙<b id="co">0</b></div>
+</header>
+<nav id="modes"></nav>
+<div id="board"></div>
+<footer>
+ <button id="undo">↩ Undo</button><button id="hint">💡 Hint</button><button id="add">➕ Tube</button><button id="reset">🔄</button><button id="shop">🛒</button>
+</footer>
+<div id="call"></div>
+<div class="modal" id="win"><div class="card"><h2 id="wt">🎉 Solved!</h2><p id="wp"></p><div class="row"><button id="nx">Next ▶</button></div></div></div>
+<div class="modal" id="shopm"><div class="card"><h2>🛒 Shop</h2><div id="shl"></div><div class="row"><button id="sc">Close</button></div></div></div>
+<script>
+const CAP=7;
+const PAL=[["Blaze Red","#ff2a55","#ff859e","#9e0b2b","😈","⚽","💎"],["Solar Orange","#ff8c00","#ffc078","#a85100","🦁","🏀","🔶"],["Laser Yellow","#ffea00","#fff799","#a69800","😎","🎾","🌟"],["Acid Green","#00e676","#8cfab7","#008f47","👽","⚾","💠"],["Cyber Cyan","#00e5ff","#99f5ff","#008394","🤖","🏐","🔮"],["Electric Blue","#2979ff","#96bbff","#0a44b0","🥶","🎳","🔷"],["Neon Violet","#d500f9","#f180ff","#7b0091","🤩","🎱","💍"],["Hot Pink","#ff1784","#ff85bc","#9e004b","😜","🏈","✨"]];
+const SKINS=[["neon","Cyber Glow",0],["emoji","Crazy Emojis",150],["sports","Sports Mania",300],["gems","Cosmic Jewels",450]];
+const THEMES=[["cyber","Cyber Neon",0,"#00e5ff"],["magic","Magic Flask",200,"#d500f9"],["gold","Golden Luxury",350,"#ffd700"]];
+const MODES=[["classic","Classic"],["rush","Crazy Rush"],["daily","Daily"]];
+const $=id=>document.getElementById(id);
+let P={coins:250,level:1,skin:"neon",theme:"cyber",own:["neon","cyber"],best:{}};
+try{Object.assign(P,JSON.parse(localStorage.getItem("bsb")||"{}"))}catch(e){}
+const save=()=>{try{localStorage.setItem("bsb",JSON.stringify(P))}catch(e){}};
+let S={mode:"classic",level:1,tubes:[],sel:null,moves:0,extra:0,hist:[],combo:0,hint:null,time:90,score:0,over:false},timer=null;
+// audio
+let AC;function beep(f,d=.12,t="sine"){try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();const o=AC.createOscillator(),g=AC.createGain();o.type=t;o.frequency.value=f;g.gain.setValueAtTime(.12,AC.currentTime);g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+d);o.connect(g).connect(AC.destination);o.start();o.stop(AC.currentTime+d)}catch(e){}}
+// logic
+function rng(s){return()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function setup(l){l=Math.max(1,l);const e=l<=20?2:1;const m={1:2,2:3,3:4,4:3,5:4,6:5,7:4,8:5,9:6,10:7};let c;if(m[l])c=m[l];else if(l<=20)c=[5,6,5,7][(l-11)%4];else c=Math.min(11,Math.max(5,[6,7,6,8,7,9][(l-21)%6]));return[c,e]}
+const done=(t)=>t.length==CAP&&t.every(x=>x==t[0]),solved=T=>T.every(t=>!t.length||done(t));
+function pour(T,f,o){const s=T[f],d=T[o];if(f==o||!s.length||d.length>=CAP||(d.length&&d.at(-1)!=s.at(-1)))return 0;const c=s.at(-1);let n=0;while(s.length&&s.at(-1)==c&&d.length<CAP){d.push(s.pop());n++}return n}
+function solve(T,max=1500){if(solved(T))return[];const key=t=>t.map(x=>x.join()).sort().join("|"),seen=new Set([key(T)]),q=[[T.map(x=>x.slice()),[]]];let n=0;for(let i=0;i<q.length&&n++<max;i++){const[cur,path]=q[i];for(let f=0;f<cur.length;f++){const s=cur[f];if(!s.length||done(s))continue;const top=s.at(-1),uni=s.every(x=>x==top);for(let o=0;o<cur.length;o++){if(o==f)continue;const d=cur[o];if(d.length>=CAP||(d.length&&d.at(-1)!=top)||(!d.length&&uni))continue;const nx=cur.map(x=>x.slice());pour(nx,f,o);const p=[...path,[f,o]];if(solved(nx))return p;const k=key(nx);if(!seen.has(k)){seen.add(k);q.push([nx,p])}}}}return null}
+function gen(l){const[nc,ne]=setup(l),n=nc+ne;for(let a=0;a<10;a++){const r=rng(l*91939+42+a*1009),T=Array.from({length:n},()=>[]);for(let c=0;c<nc;c++)for(let k=0;k<CAP;k++)T[c].push(c);let lf=-1,lt=-1;for(let s=0;s<24+l*3;s++){const mv=[];for(let f=0;f<n;f++){if(!T[f].length)continue;for(let o=0;o<n;o++){if(f==o||T[o].length>=CAP||(f==lt&&o==lf))continue;mv.push([f,o])}}if(mv.length){const[f,o]=mv[Math.floor(r()*mv.length)];T[o].push(T[f].pop());lf=f;lt=o}}
+for(let e=nc;e<n;e++)while(T[e].length){const b=T[e].pop(),t=T.slice(0,nc).findIndex(x=>x.length<CAP);if(t>=0)T[t].push(b);else{T[e].push(b);break}}
+if(!solved(T)){const s=solve(T,2000);if(s&&s.length)return T}}
+const r=rng(l),all=[];for(let c=0;c<nc;c++)for(let k=0;k<CAP;k++)all.push(c);all.sort(()=>r()-.5);return Array.from({length:n},(_,i)=>i<nc?all.slice(i*CAP,i*CAP+CAP):[])}
+// game flow
+function load(l){S.level=l;S.tubes=gen(l);S.sel=null;S.moves=0;S.extra=0;S.hist=[];S.combo=0;S.hint=null;S.over=false;render()}
+function setMode(m){S.mode=m;clearInterval(timer);S.score=0;if(m=="daily")load(999);else if(m=="rush"){S.time=90;load(P.level);timer=setInterval(()=>{if(S.over)return;S.time--;if(S.time<=0){S.time=0;S.over=true;end("⏱ Time's up!","Score: "+S.score+" 🏆")}render()},1000)}else load(P.level)}
+function call(t){const c=$("call");c.textContent=t;c.classList.remove("show");void c.offsetWidth;c.classList.add("show")}
+function tap(i){if(S.over)return;beep(500);if(S.sel===null){if(S.tubes[i].length)S.sel=i;S.hint=null;return render()}
+if(S.sel===i){S.sel=null;return render()}
+const snap={t:S.tubes.map(x=>x.slice()),m:S.moves,e:S.extra},T=S.tubes.map(x=>x.slice()),n=pour(T,S.sel,i);
+if(!n){const bad=S.sel;S.sel=S.tubes[i].length?i:null;render();const el=$("board").children[bad];el.classList.add("shake");beep(160,.2,"square");return}
+S.hist.push(snap);S.tubes=T;S.moves++;S.sel=null;S.hint=null;for(let k=0;k<n;k++)setTimeout(()=>beep(600+k*90,.08),k*60);
+if(done(T[i])){S.combo++;beep(880,.3,"triangle");if(S.mode=="rush"){S.time+=15;S.score+=250*S.combo}call(["","TUBE CLEARED! 🌟","COMBO x2! 🔥","SAVAGE! ⚡","UNSTOPPABLE! 💥"][S.combo]||"GODLIKE x"+S.combo+"! 🚀")}
+render();if(solved(T))win()}
+function win(){const earn=60+S.combo*15;P.coins+=earn;if(S.mode=="rush"){S.score+=500;P.level++;save();call("LEVEL UP! ⚡");return setTimeout(()=>load(P.level),700)}
+const k="L"+S.level;if(!P.best[k]||S.moves<P.best[k])P.best[k]=S.moves;if(S.mode=="classic")P.level=S.level+1;save();S.over=true;beep(1000,.5,"triangle");end("🎉 Solved in "+S.moves+" moves!","+"+earn+" coins 🪙")}
+function end(t,p){$("wt").textContent=t;$("wp").textContent=p;$("nx").textContent=S.mode=="rush"?"Play again":"Next ▶";$("win").classList.add("open");save();render()}
+// ui
+function ballHTML(c){const[,p,h,s,em,sp,gm]=PAL[c%8];const g=P.skin=="emoji"?em:P.skin=="sports"?sp:P.skin=="gems"?gm:"";const bg=P.skin=="neon"?`radial-gradient(circle at 35% 30%,${h},${p} 55%,${s})`:"var(--glass)";return`<div class="ball" style="background:${bg};box-shadow:${P.skin=="neon"?"0 0 8px "+p:"none"}">${g}</div>`}
+function render(){const th=THEMES.find(t=>t[0]==P.theme)[3],B=$("board");B.innerHTML="";S.tubes.forEach((t,i)=>{const d=document.createElement("div");d.className="tube"+(S.sel===i?" sel":"")+(done(t)?" done":"")+(S.hint&&(S.hint[0]==i||S.hint[1]==i)?" hint":"");d.style.setProperty("--rim",th);d.innerHTML=t.map(ballHTML).join("");d.onclick=()=>tap(i);B.appendChild(d)});
+$("lv").textContent=S.mode=="daily"?"Daily":S.level;$("co").textContent=P.coins;$("bt").textContent=P.best["L"+S.level]||"-";
+$("s2").innerHTML=S.mode=="rush"?`⏱ ${S.time}s<b>${S.score}</b>`:`MOVES<b>${S.moves}</b>`;
+$("undo").disabled=!S.hist.length;$("add").disabled=S.extra>=2;
+$("modes").innerHTML=MODES.map(m=>`<button class="${S.mode==m[0]?"on":""}" onclick="setMode('${m[0]}')">${m[1]}</button>`).join("")}
+$("undo").onclick=()=>{const h=S.hist.pop();if(!h)return;S.tubes=h.t;S.moves=h.m;S.extra=h.e;S.sel=null;S.hint=null;beep(300);render()};
+$("add").onclick=()=>{if(S.extra>=2||S.over)return;S.hist.push({t:S.tubes.map(x=>x.slice()),m:S.moves,e:S.extra});S.tubes.push([]);S.extra++;beep(700);render()};
+$("hint").onclick=()=>{const s=solve(S.tubes);if(s&&s.length){S.hint=s[0];S.sel=null}else call("NO MOVES! ADD TUBE 💡");render()};
+$("reset").onclick=()=>{S.over=false;load(S.level)};
+$("nx").onclick=()=>{$("win").classList.remove("open");if(S.mode=="rush")setMode("rush");else if(S.mode=="daily")load(999);else load(P.level)};
+function shop(){const buy=(kind,id,price)=>{if(P.own.includes(id)){P[kind]=id}else if(P.coins>=price){P.coins-=price;P.own.push(id);P[kind]=id}else{call("NOT ENOUGH COINS");return}save();shop();render()};window._b=buy;
+const row=(k,a)=>a.map(x=>{const own=P.own.includes(x[0]),cur=P[k]==x[0];return`<div class="item"><span>${x[1]}<small>${own?"Owned":"🪙 "+x[2]}</small></span><button ${cur?"disabled":""} onclick="_b('${k}','${x[0]}',${x[2]})">${cur?"Equipped":own?"Equip":"Buy"}</button></div>`}).join("");
+$("shl").innerHTML=`<b>Ball skins</b>${row("skin",SKINS)}<br><b>Tube themes</b>${row("theme",THEMES)}`;$("shopm").classList.add("open")}
+$("shop").onclick=shop;$("sc").onclick=()=>$("shopm").classList.remove("open");
+setMode("classic");
+</script>
+</body>
+</html>
